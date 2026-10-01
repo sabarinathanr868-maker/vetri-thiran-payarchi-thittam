@@ -1,0 +1,441 @@
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import os
+
+# --- Page Configuration ---
+st.set_page_config(
+    page_title="PocketSmart AI - Instant Smart Budget Generator",
+    page_icon="💡",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# --- Clean, Modern Styling ---
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    
+    .hero-container {
+        text-align: center;
+        padding: 30px 20px 20px 20px;
+        background: linear-gradient(135deg, #0F172A 0%, #1E293B 100%);
+        border-radius: 20px;
+        color: white;
+        margin-bottom: 25px;
+        box-shadow: 0 10px 30px -10px rgba(15, 23, 42, 0.3);
+    }
+    
+    .hero-title {
+        font-size: 2.3rem;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+        background: linear-gradient(90deg, #38BDF8, #818CF8, #34D399);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 8px;
+    }
+    
+    .hero-subtitle {
+        font-size: 1.05rem;
+        color: #94A3B8;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .plan-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 22px 20px;
+        border: 1px solid #E2E8F0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+        text-align: center;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .plan-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+    }
+    
+    .card-needs { border-top: 5px solid #3B82F6; }
+    .card-wants { border-top: 5px solid #F59E0B; }
+    .card-savings { border-top: 5px solid #10B981; }
+    .card-emergency { border-top: 5px solid #8B5CF6; }
+
+    .card-title {
+        font-size: 0.9rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #64748B;
+    }
+    .card-amount {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #0F172A;
+        margin: 8px 0;
+    }
+    .card-pct {
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 20px;
+        display: inline-block;
+    }
+    .pct-blue { background: #EFF6FF; color: #1D4ED8; }
+    .pct-amber { background: #FFFBEB; color: #B45309; }
+    .pct-green { background: #ECFDF5; color: #047857; }
+    .pct-purple { background: #F5F3FF; color: #6D28D9; }
+
+    .tip-box {
+        background: #F8FAFC;
+        border-left: 4px solid #3B82F6;
+        padding: 16px 18px;
+        border-radius: 0 12px 12px 0;
+        margin-bottom: 12px;
+    }
+    .tip-title {
+        font-weight: 700;
+        color: #1E293B;
+        font-size: 0.95rem;
+    }
+    .tip-desc {
+        color: #475569;
+        font-size: 0.88rem;
+        margin-top: 4px;
+        line-height: 1.45;
+    }
+
+    .daily-allowance-box {
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+        border: 2px dashed #86EFAC;
+        border-radius: 16px;
+        padding: 20px;
+        text-align: center;
+        margin: 20px 0;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+
+# --- Top Hero Banner ---
+st.markdown("""
+<div class="hero-container">
+    <div class="hero-title">PocketSmart AI 💡</div>
+    <div class="hero-subtitle">Enter your total money or salary, and get an instant, personalized smart plan for spending, saving, and investing.</div>
+</div>
+""", unsafe_allow_html=True)
+
+
+# --- Input Control Panel ---
+with st.container():
+    c_curr, c_income, c_style, c_goal = st.columns([1, 2, 1.5, 1.5], gap="medium")
+    
+    with c_curr:
+        curr_symbol = st.selectbox(
+            "Currency",
+            options=["₹ (INR)", "$ (USD)", "€ (EUR)", "£ (GBP)", "¥ (JPY)", "C$ (CAD)", "A$ (AUD)"],
+            index=0
+        )
+        CURR = curr_symbol.split()[0]
+        
+    with c_income:
+        user_income = st.number_input(
+            "Enter Total Money / Monthly Salary",
+            min_value=100.0,
+            value=50000.0,
+            step=1000.0,
+            format="%.0f",
+            help="Enter how much money you have received or your monthly salary."
+        )
+        
+    with c_style:
+        lifestyle = st.selectbox(
+            "Budget Style",
+            options=[
+                "Balanced (50/30/20 Rule)",
+                "Aggressive Wealth Builder (40/20/40)",
+                "Comfort / High Rent (60/25/15)",
+                "Student / Low-Cost Living (55/20/25)"
+            ],
+            index=0,
+            help="Choose how you prefer to allocate your funds."
+        )
+        
+    with c_goal:
+        focus_goal = st.selectbox(
+            "Primary Financial Focus",
+            options=[
+                "Build Emergency Security Fund",
+                "Start Investing for Wealth",
+                "Pay Off Debts / Loans",
+                "Save for Big Purchase / Trip",
+                "Maximize Daily Happiness"
+            ],
+            index=0
+        )
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+
+# --- Budget Calculation Engine ---
+if lifestyle.startswith("Balanced"):
+    p_needs = 0.50
+    p_wants = 0.30
+    p_savings = 0.15
+    p_emergency = 0.05
+elif lifestyle.startswith("Aggressive"):
+    p_needs = 0.40
+    p_wants = 0.20
+    p_savings = 0.30
+    p_emergency = 0.10
+elif lifestyle.startswith("Comfort"):
+    p_needs = 0.60
+    p_wants = 0.25
+    p_savings = 0.10
+    p_emergency = 0.05
+else: # Student / Low-cost
+    p_needs = 0.55
+    p_wants = 0.20
+    p_savings = 0.15
+    p_emergency = 0.10
+
+# Adjust based on focus goal
+if focus_goal == "Build Emergency Security Fund":
+    p_emergency += 0.05
+    p_wants = max(0.15, p_wants - 0.05)
+elif focus_goal == "Start Investing for Wealth":
+    p_savings += 0.05
+    p_wants = max(0.15, p_wants - 0.05)
+elif focus_goal == "Pay Off Debts / Loans":
+    p_emergency += 0.05
+    p_wants = max(0.15, p_wants - 0.05)
+
+# Calculate Amounts
+amt_needs = user_income * p_needs
+amt_wants = user_income * p_wants
+amt_savings = user_income * p_savings
+amt_emergency = user_income * p_emergency
+
+# Safe Daily Spend Limit
+daily_fun_allowance = amt_wants / 30.0
+
+
+# --- Step 1: High Level Breakdown Cards ---
+st.subheader("🎯 Your Instant Smart Allocation")
+
+card1, card2, card3, card4 = st.columns(4)
+
+with card1:
+    st.markdown(f"""
+    <div class="plan-card card-needs">
+        <div class="card-title">🏠 Essential Needs</div>
+        <div class="card-amount">{CURR}{amt_needs:,.0f}</div>
+        <span class="card-pct pct-blue">{int(p_needs*100)}% of money</span>
+        <p style="font-size:0.8rem; color:#64748B; margin-top:8px;">Rent, groceries, utilities, bills & transport</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with card2:
+    st.markdown(f"""
+    <div class="plan-card card-wants">
+        <div class="card-title">🎉 Lifestyle & Wants</div>
+        <div class="card-amount">{CURR}{amt_wants:,.0f}</div>
+        <span class="card-pct pct-amber">{int(p_wants*100)}% of money</span>
+        <p style="font-size:0.8rem; color:#64748B; margin-top:8px;">Dining out, shopping, hobbies & entertainment</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with card3:
+    st.markdown(f"""
+    <div class="plan-card card-savings">
+        <div class="card-title">📈 Investments & Wealth</div>
+        <div class="card-amount">{CURR}{amt_savings:,.0f}</div>
+        <span class="card-pct pct-green">{int(p_savings*100)}% of money</span>
+        <p style="font-size:0.8rem; color:#64748B; margin-top:8px;">Mutual funds, SIPs, stocks & long-term growth</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+with card4:
+    st.markdown(f"""
+    <div class="plan-card card-emergency">
+        <div class="card-title">🛡️ Emergency Buffer</div>
+        <div class="card-amount">{CURR}{amt_emergency:,.0f}</div>
+        <span class="card-pct pct-purple">{int(p_emergency*100)}% of money</span>
+        <p style="font-size:0.8rem; color:#64748B; margin-top:8px;">High-yield liquid savings for unplanned emergencies</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+# Safe Daily Allowance Callout
+st.markdown(f"""
+<div class="daily-allowance-box">
+    <div style="font-size:0.85rem; font-weight:700; color:#15803D; text-transform:uppercase; letter-spacing:0.5px;">💡 PocketSmart Daily Guilt-Free Spending Limit</div>
+    <div style="font-size:2.2rem; font-weight:800; color:#166534; margin:4px 0;">{CURR}{daily_fun_allowance:,.0f} <span style="font-size:1rem; font-weight:600;">/ day</span></div>
+    <div style="font-size:0.9rem; color:#166534;">You can spend up to this amount every day on dining, coffee, or fun, and <b>your savings and bills will still remain 100% safe!</b></div>
+</div>
+""", unsafe_allow_html=True)
+
+
+# --- Step 2: Detailed Category-by-Category Plan & Visuals ---
+col_table, col_chart = st.columns([1.2, 0.8], gap="large")
+
+with col_table:
+    st.subheader("📋 Exactly How to Divide Your Money")
+    
+    # Detailed category breakdown percentages
+    categories_breakdown = [
+        {"Category": "🏠 House Rent / Home EMI", "Type": "Need", "Share": 0.30, "Amount": user_income * 0.30, "Tip": "Target to keep housing under 30% of total income."},
+        {"Category": "🛒 Groceries & Supermarket", "Type": "Need", "Share": 0.12, "Amount": user_income * 0.12, "Tip": "Buy staple items in bulk; make a shopping list."},
+        {"Category": "💡 Electricity, Water & Internet", "Type": "Need", "Share": 0.05, "Amount": user_income * 0.05, "Tip": "Pay fixed bills early to avoid late fees."},
+        {"Category": "🚗 Commute & Fuel", "Type": "Need", "Share": 0.03 + (p_needs - 0.50 if p_needs > 0.50 else 0), "Amount": user_income * (0.03 + (p_needs - 0.50 if p_needs > 0.50 else 0)), "Tip": "Use public transit passes or carpool when possible."},
+        {"Category": "🍽️ Dining Out & Food Delivery", "Type": "Want", "Share": p_wants * 0.45, "Amount": amt_wants * 0.45, "Tip": "Limit food deliveries to 2-3 times per week."},
+        {"Category": "🛍️ Shopping & Gadgets", "Type": "Want", "Share": p_wants * 0.35, "Amount": amt_wants * 0.35, "Tip": "Apply the 48-hour cooling rule for purchases."},
+        {"Category": "🎬 Subscriptions & Movies", "Type": "Want", "Share": p_wants * 0.20, "Amount": amt_wants * 0.20, "Tip": "Audit and cancel apps or streaming you don't use."},
+        {"Category": "📈 Monthly SIP / Mutual Funds", "Type": "Investment", "Share": p_savings, "Amount": amt_savings, "Tip": "Automate on salary day: 'Pay yourself first'."},
+        {"Category": "🛡️ Emergency Fund Deposit", "Type": "Savings", "Share": p_emergency, "Amount": amt_emergency, "Tip": "Keep this in a separate bank account or liquid fund."}
+    ]
+    
+    df_cat = pd.DataFrame(categories_breakdown)
+    
+    # Display neat interactive table
+    for item in categories_breakdown:
+        with st.container():
+            t_col1, t_col2 = st.columns([2.5, 1])
+            with t_col1:
+                st.markdown(f"**{item['Category']}**  \n<span style='color:#64748B; font-size:0.8rem;'>{item['Tip']}</span>", unsafe_allow_html=True)
+            with t_col2:
+                st.markdown(f"<div style='text-align:right; font-weight:700; font-size:1.1rem; color:#0F172A;'>{CURR}{item['Amount']:,.0f}</div>", unsafe_allow_html=True)
+            st.divider()
+
+with col_chart:
+    st.subheader("📊 Visual Distribution")
+    
+    pie_data = pd.DataFrame([
+        {"Bucket": "Needs (Essentials)", "Amount": amt_needs},
+        {"Bucket": "Wants (Lifestyle)", "Amount": amt_wants},
+        {"Bucket": "Investments (Wealth)", "Amount": amt_savings},
+        {"Bucket": "Emergency Buffer", "Amount": amt_emergency}
+    ])
+    
+    fig = px.pie(
+        pie_data,
+        names="Bucket",
+        values="Amount",
+        hole=0.55,
+        color="Bucket",
+        color_discrete_map={
+            "Needs (Essentials)": "#3B82F6",
+            "Wants (Lifestyle)": "#F59E0B",
+            "Investments (Wealth)": "#10B981",
+            "Emergency Buffer": "#8B5CF6"
+        }
+    )
+    fig.update_traces(textposition='inside', textinfo='percent+label', marker=dict(line=dict(color='#FFFFFF', width=2)))
+    fig.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=320, showlegend=False)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # 1-Year Wealth Projection Card
+    one_year_savings = (amt_savings + amt_emergency) * 12
+    five_year_sip = amt_savings * (((1 + 0.12/12)**60 - 1) / (0.12/12)) # 12% expected long-term return
+    
+    st.markdown(f"""
+    <div style="background:#F8FAFC; border:1px solid #E2E8F0; border-radius:14px; padding:16px; margin-top:10px;">
+        <div style="font-weight:700; font-size:0.9rem; color:#0F172A;">🚀 Your Projected Wealth Trajectory</div>
+        <ul style="font-size:0.85rem; color:#475569; margin-top:8px; padding-left:18px; line-height:1.6;">
+            <li>In <b>1 Year</b>, you will accumulate <b>{CURR}{one_year_savings:,.0f}</b> in cash & investments.</li>
+            <li>In <b>5 Years</b>, investing your {CURR}{amt_savings:,.0f}/month at an average 12% return grows to <b style="color:#059669;">{CURR}{five_year_sip:,.0f}</b>!</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# --- Step 3: Smart AI Actionable Tips & Rules ---
+st.markdown("---")
+st.subheader("🤖 PocketSmart AI Recommendations for Your Money")
+
+r_col1, r_col2 = st.columns(2, gap="medium")
+
+with r_col1:
+    st.markdown(f"""
+    <div class="tip-box">
+        <div class="tip-title">1. The 'Pay Yourself First' Golden Rule</div>
+        <div class="tip-desc">The moment your money arrives, immediately transfer <b>{CURR}{amt_savings + amt_emergency:,.0f}</b> into your investment and emergency accounts. Spend only what is left over, never save what is left after spending.</div>
+    </div>
+    <div class="tip-box" style="border-left-color: #10B981;">
+        <div class="tip-title">2. Build a 3-Month Safety Net</div>
+        <div class="tip-desc">Your basic monthly survival cost is <b>{CURR}{amt_needs:,.0f}</b>. Aim for an emergency fund of at least <b>{CURR}{amt_needs * 3:,.0f}</b>. Depositing {CURR}{amt_emergency:,.0f}/month gets you there reliably.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+with r_col2:
+    st.markdown(f"""
+    <div class="tip-box" style="border-left-color: #F59E0B;">
+        <div class="tip-title">3. The 48-Hour Rule for Big Purchases</div>
+        <div class="tip-desc">Whenever you want to buy something non-essential above <b>{CURR}{daily_fun_allowance * 3:,.0f}</b>, wait 48 hours. If you still feel the need after 2 days, buy it guilt-free from your Wants allowance.</div>
+    </div>
+    <div class="tip-box" style="border-left-color: #8B5CF6;">
+        <div class="tip-title">4. Automatic Wealth Compounding</div>
+        <div class="tip-desc">Set an automatic SIP (Systematic Investment Plan) for <b>{CURR}{amt_savings:,.0f}</b> on the 1st or 5th of every month into a low-cost broad index fund or diversified portfolio.</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# --- Step 4: Ask AI a Custom Question About This Budget ---
+st.markdown("---")
+st.subheader("💬 Have a Question About Your Money?")
+
+q_input = st.text_input(
+    "Ask anything (e.g., 'What if my rent is higher?', 'Can I afford an iPhone?', 'Where should I invest my savings?')",
+    placeholder="Type your question here and press enter..."
+)
+
+if q_input:
+    # Check if user has Gemini API Key or use smart local assistant
+    api_key = os.environ.get("GEMINI_API_KEY")
+    ai_answer = ""
+    
+    if api_key:
+        try:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+            prompt = f"""
+You are PocketSmart AI, an expert, encouraging financial coach.
+The user has {CURR}{user_income:,.0f} total money.
+Their budget allocation is:
+- Needs: {CURR}{amt_needs:,.0f}
+- Wants: {CURR}{amt_wants:,.0f}
+- Investments: {CURR}{amt_savings:,.0f}
+- Emergency: {CURR}{amt_emergency:,.0f}
+- Daily allowance: {CURR}{daily_fun_allowance:,.0f}
+
+User Question: {q_input}
+Give a concise, direct, helpful, and numerical answer tailored to their exact money numbers.
+"""
+            res = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt
+            )
+            ai_answer = res.text
+        except Exception:
+            pass
+            
+    if not ai_answer:
+        # High quality local contextual answer
+        ql = q_input.lower()
+        if "rent" in ql or "house" in ql:
+            ai_answer = f"If your rent is higher than {CURR}{user_income*0.30:,.0f}, you can adjust by slightly reducing your 'Wants' category (currently {CURR}{amt_wants:,.0f}). Keep your rent + utilities under {CURR}{user_income*0.45:,.0f} to protect your financial stability."
+        elif "iphone" in ql or "phone" in ql or "buy" in ql or "gadget" in ql:
+            ai_answer = f"For big purchases like a phone or gadget, never take money from your Needs ({CURR}{amt_needs:,.0f}) or Emergency buffer. Instead, save from your monthly Wants allowance ({CURR}{amt_wants:,.0f}/month) over 2 to 4 months, or use the 48-hour cooling rule before buying."
+        elif "invest" in ql or "where" in ql or "sip" in ql:
+            ai_answer = f"With {CURR}{amt_savings:,.0f}/month to invest, a smart split is: 70% in a broad index fund (Nifty 50 or S&P 500) for long-term compound growth, and 30% in a flexi-cap or balanced fund. Keep your {CURR}{amt_emergency:,.0f} emergency money in high-yield liquid savings."
+        else:
+            ai_answer = f"Based on your {CURR}{user_income:,.0f} income, the most important action is to automate your {CURR}{amt_savings:,.0f} investment on day one, pay your {CURR}{amt_needs:,.0f} essentials, and stick to your daily fun limit of {CURR}{daily_fun_allowance:,.0f}."
+            
+    st.info(f"**PocketSmart AI:** {ai_answer}")
+
+st.markdown("<br><center style='color:#94A3B8; font-size:0.8rem;'>PocketSmart AI • Enter your money, get your smart plan instantly</center>", unsafe_allow_html=True)
